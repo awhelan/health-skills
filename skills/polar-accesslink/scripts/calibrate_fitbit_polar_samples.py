@@ -17,12 +17,12 @@ import numpy as np
 import pandas as pd
 from zoneinfo import ZoneInfo
 
-_REPO_ROOT = Path(__file__).resolve().parents[3]
 # Cross-provider calibration uses the Fitbit puller's token refresh + 1sec HR
-# fetch; import it from the fitbit skill.
-for import_path in (_REPO_ROOT, _REPO_ROOT / "skills" / "fitbit" / "scripts"):
-    if str(import_path) not in sys.path:
-        sys.path.insert(0, str(import_path))
+# fetch; import it from the fitbit skill via a sys.path bridge (the only such
+# bridge — healthdata itself resolves through the editable install).
+_FITBIT_SCRIPTS = Path(__file__).resolve().parents[3] / "skills" / "fitbit" / "scripts"
+if str(_FITBIT_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(_FITBIT_SCRIPTS))
 
 import pull_fitbit as fitbit_pull
 

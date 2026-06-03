@@ -21,10 +21,6 @@ import urllib.parse
 from pathlib import Path
 from typing import Any
 
-_REPO_ROOT = Path(__file__).resolve().parents[3]
-if str(_REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT))
-
 try:
     import requests
 except ImportError as exc:  # pragma: no cover - exercised by missing local dep

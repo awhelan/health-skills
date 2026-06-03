@@ -17,10 +17,6 @@ from getpass import getpass
 from pathlib import Path
 from typing import Any
 
-_REPO_ROOT = Path(__file__).resolve().parents[3]
-if str(_REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT))
-
 from healthdata.auth import run_oauth_callback, stamp_oauth_token
 from healthdata.config import POLAR_ENV_FILE, POLAR_TOKEN_FILE
 from healthdata.io import load_env_file as _load_env_file, write_json_file
