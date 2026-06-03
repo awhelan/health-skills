@@ -18,9 +18,7 @@ from pathlib import Path
 from typing import Any, Iterable
 from zoneinfo import ZoneInfo
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
-
-from healthdata.config import (  # noqa: E402
+from healthdata.config import (
     DEFAULT_LOCAL_TIMEZONE,
     NIKE_LAST_NORMALIZE_FILE,
     NIKE_RUN_CLUB_RAW_ROOT,
@@ -28,8 +26,8 @@ from healthdata.config import (  # noqa: E402
     NIKE_RUN_CLUB_TIMEZONE_ENV,
     workspace_path,
 )
-from healthdata.io import utc_now_iso, write_json_file  # noqa: E402
-from healthdata.timeutil import resolve_timezone, validate_date_window  # noqa: E402
+from healthdata.io import utc_now_iso, write_json_file
+from healthdata.timeutil import resolve_timezone, validate_date_window
 
 
 ACTIVITY_COLUMNS = [

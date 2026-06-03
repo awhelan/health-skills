@@ -17,16 +17,12 @@ also runnable on its own to refresh/validate the cached session without pulling:
 from __future__ import annotations
 
 import argparse
-import base64
-import datetime as dt
 import html
 import json
-import os
 import re
 import secrets
 import stat
 import sys
-import time
 import urllib.parse
 from dataclasses import dataclass
 from http.cookiejar import MozillaCookieJar
@@ -39,6 +35,15 @@ except ImportError as exc:  # pragma: no cover - exercised by missing local dep
     raise SystemExit("This script requires `requests`: python3 -m pip install requests") from exc
 
 
+from healthdata.auth import decode_jwt_payload, token_is_fresh
+from healthdata.io import (
+    ensure_private_dir,
+    getenv_stripped as getenv,
+    load_env_file,
+    utc_now_iso,
+    write_json_file,
+)
+
 WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_ENV_FILE = WORKSPACE_ROOT / ".local/secrets/dexcom_clarity.env"
 DEFAULT_CACHE_DIR = WORKSPACE_ROOT / ".local/state/dexcom_clarity"
@@ -47,7 +52,6 @@ CLARITY_CLIENT_ID = "DAEC20AC-9626-4B0E-94B5-B674E298F51E"
 CLARITY_CALLBACK = "https://clarity.dexcom.com/users/auth/dexcom_sts/callback"
 UAM_AUTHORIZE_URL = "https://uam1.dexcom.com/identity/connect/authorize"
 DEFAULT_API_BASE = "https://clarity.dexcom.com/api"
-TOKEN_REFRESH_MARGIN_SECONDS = 300
 
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:151.0) "
@@ -68,37 +72,6 @@ class Settings:
     units: str
     api_base: str
     cache_dir: Path
-
-
-def load_env_file(path: Path) -> None:
-    path = path.expanduser()
-    if not path.exists():
-        return
-
-    for raw_line in path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#"):
-            continue
-        if line.startswith("export "):
-            line = line[len("export ") :].lstrip()
-        if "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        key = key.strip()
-        value = value.strip()
-        if not key or key in os.environ:
-            continue
-        if (
-            len(value) >= 2
-            and value[0] == value[-1]
-            and value[0] in {"'", '"'}
-        ):
-            value = value[1:-1]
-        os.environ[key] = value
-
-
-def getenv(name: str, default: str = "") -> str:
-    return os.environ.get(name, default).strip()
 
 
 def load_settings(env_file: Path, cache_dir: Path) -> Settings:
@@ -133,24 +106,6 @@ def strict_private_file(path: Path) -> None:
         path.chmod(stat.S_IRUSR | stat.S_IWUSR)
     except FileNotFoundError:
         pass
-
-
-def ensure_private_dir(path: Path) -> None:
-    path.mkdir(parents=True, exist_ok=True)
-    path.chmod(stat.S_IRWXU)
-
-
-def write_json_file(path: Path, payload: object, *, private: bool = False) -> Path:
-    """Write pretty JSON with a trailing newline using an atomic replace."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    if private:
-        strict_private_file(tmp)
-    tmp.replace(path)
-    if private:
-        strict_private_file(path)
-    return path
 
 
 def session_cache_path(settings: Settings) -> Path:
@@ -201,26 +156,6 @@ def save_cookies(session: requests.Session, settings: Settings) -> None:
     if isinstance(session.cookies, MozillaCookieJar):
         session.cookies.save(ignore_discard=True, ignore_expires=True)
         strict_private_file(cookie_jar_path(settings))
-
-
-def decode_jwt_payload(token: str) -> dict[str, Any]:
-    parts = token.split(".")
-    if len(parts) < 2:
-        return {}
-    payload = parts[1]
-    payload += "=" * (-len(payload) % 4)
-    try:
-        return json.loads(base64.urlsafe_b64decode(payload).decode("utf-8"))
-    except Exception:
-        return {}
-
-
-def token_is_fresh(token: str) -> bool:
-    payload = decode_jwt_payload(token)
-    exp = payload.get("exp")
-    if not isinstance(exp, (int, float)):
-        return False
-    return exp - time.time() > TOKEN_REFRESH_MARGIN_SECONDS
 
 
 def token_subject_id(token: str) -> str:
@@ -410,7 +345,7 @@ def extract_session_from_response(response: requests.Response, settings: Setting
 
     data = normalize_session_data(data, settings)
     if data.get("access_token"):
-        data["updated_at"] = dt.datetime.now(dt.timezone.utc).isoformat()
+        data["updated_at"] = utc_now_iso(timespec="microseconds")
     return data
 
 

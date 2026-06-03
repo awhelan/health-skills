@@ -13,16 +13,15 @@ import argparse
 from collections import Counter
 import csv
 import datetime as dt
-import json
 import os
 import sys
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(WORKSPACE_ROOT))
+from healthdata.io import utc_now_iso, write_json_file
+from healthdata.timeutil import resolve_timezone
 
-from healthdata.timeutil import resolve_timezone  # noqa: E402
+WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
 
 TABLE_COLUMNS = ["timestamp", "glucose_mg_dl", "source_device", "transmitter_id"]
 DEFAULT_TABLE = WORKSPACE_ROOT / "data/staged/dexcom_clarity/cgm_readings.csv"
@@ -226,11 +225,6 @@ def normalize_readings(table_path: Path, readings: list[dict[str, str]]) -> tupl
     return added, len(table)
 
 
-def normalize_export(table_path: Path, data: bytes | str, local_tz: ZoneInfo = DEFAULT_LOCAL_TZ) -> tuple[int, int]:
-    """Normalize one Clarity export into the staged CGM table."""
-    return normalize_readings(table_path, parse_clarity_readings(data, local_tz))
-
-
 def workspace_path(path: Path) -> str:
     """Render a path relative to the workspace root for manifests."""
     resolved = path.resolve()
@@ -238,15 +232,6 @@ def workspace_path(path: Path) -> str:
         return str(resolved.relative_to(WORKSPACE_ROOT))
     except ValueError:
         return str(resolved)
-
-
-def write_json_file(path: Path, payload: object) -> Path:
-    """Write pretty JSON with a trailing newline using an atomic replace."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    tmp.replace(path)
-    return path
 
 
 def write_normalize_manifest(
@@ -260,7 +245,7 @@ def write_normalize_manifest(
 ) -> Path:
     """Write a last-normalize provenance manifest under data/manifests/ingestions/."""
     manifest = {
-        "normalized_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+        "normalized_at": utc_now_iso(),
         "table": workspace_path(table_path),
         "timezone": timezone,
         "exports": exports,

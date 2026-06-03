@@ -21,14 +21,12 @@ import urllib.parse
 from pathlib import Path
 from typing import Any
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
-
 try:
     import requests
 except ImportError as exc:  # pragma: no cover - exercised by missing local dep
     raise SystemExit("This script requires `requests`: python3 -m pip install requests") from exc
 
-from healthdata.config import (  # noqa: E402
+from healthdata.config import (
     DEFAULT_LOCAL_TIMEZONE,
     NIKE_LAST_NORMALIZE_FILE,
     NIKE_LAST_PULL_FILE,
@@ -38,8 +36,8 @@ from healthdata.config import (  # noqa: E402
     NIKE_RUN_CLUB_TIMEZONE_ENV,
     workspace_path,
 )
-from healthdata.io import utc_now_iso, write_json_file  # noqa: E402
-from healthdata.timeutil import validate_date_window  # noqa: E402
+from healthdata.io import utc_now_iso, write_json_file
+from healthdata.timeutil import validate_date_window
 from normalize_nike_run_club import normalize_raw_dir
 
 

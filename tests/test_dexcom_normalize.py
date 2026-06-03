@@ -8,6 +8,7 @@ import io
 import json
 from contextlib import redirect_stderr, redirect_stdout
 import sys
+import time
 import unittest
 import urllib.parse
 from pathlib import Path
@@ -395,7 +396,7 @@ class DexcomPullTests(unittest.TestCase):
         self.assertIn("updated_at", data)
 
     def test_jwt_helpers_decode_subject_and_freshness(self) -> None:
-        now = int(auth_dexcom_clarity.time.time())
+        now = int(time.time())
         fresh = unsigned_jwt({"exp": now + 900, "subjectId": "subject-1"})
         stale = unsigned_jwt({"exp": now - 1, "subjectId": "subject-1"})
 
@@ -501,7 +502,7 @@ class DexcomAuthTests(unittest.TestCase):
         self.assertEqual(data["subject_id"], "from-token")
 
     def test_cached_or_env_session_uses_fresh_env_token(self) -> None:
-        now = int(auth_dexcom_clarity.time.time())
+        now = int(time.time())
         token = unsigned_jwt({"exp": now + 900, "subjectId": "subject-1"})
         data = auth_dexcom_clarity.cached_or_env_session(
             self.settings(subject_token=token), force_login=False
@@ -510,7 +511,7 @@ class DexcomAuthTests(unittest.TestCase):
         self.assertEqual(data["source"], "env")
 
     def test_cached_or_env_session_force_login_ignores_stale_token(self) -> None:
-        now = int(auth_dexcom_clarity.time.time())
+        now = int(time.time())
         stale = unsigned_jwt({"exp": now - 1, "subjectId": "subject-1"})
         data = auth_dexcom_clarity.cached_or_env_session(
             self.settings(subject_token=stale), force_login=True

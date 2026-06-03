@@ -38,7 +38,6 @@ from auth_dexcom_clarity import (
     require_settings,
     resolve_session,
     save_cookies,
-    write_json_file,
 )
 from normalize_dexcom_clarity import (
     DEFAULT_NORMALIZE_MANIFEST,
@@ -50,6 +49,7 @@ from normalize_dexcom_clarity import (
     workspace_path,
     write_normalize_manifest,
 )
+from healthdata.io import utc_now_iso, write_json_file
 
 
 DEFAULT_STAGED_DIR = WORKSPACE_ROOT / "data/staged/dexcom_clarity"
@@ -283,7 +283,7 @@ def main() -> int:
 
             csv_bytes = export_csv(settings, http, session_data, start_date, end_date)
             manifest: dict[str, Any] = {
-                "pulled_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+                "pulled_at": utc_now_iso(),
                 "staged_dir": workspace_path(args.staged_dir),
                 "interval": f"{start_date.isoformat()}/{end_date.isoformat()}",
                 "timezone": local_tz.key,
