@@ -8,5 +8,6 @@ data/
 __pycache__/
 *.pyc
 *.tmp
+*.egg-info/
 
 .venv/
