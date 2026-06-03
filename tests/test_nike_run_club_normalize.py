@@ -194,6 +194,50 @@ class NikeRunClubNormalizeTests(unittest.TestCase):
 
 
 class NikeRunClubPullTests(unittest.TestCase):
+    def test_custom_staged_dir_defaults_manifests_next_to_output(self) -> None:
+        with TemporaryDirectory() as tmp:
+            staged = Path(tmp) / "staged"
+
+            self.assertEqual(
+                normalize_nike_run_club.default_manifest_path(staged),
+                staged / "nike-run-club-last-normalize.json",
+            )
+            self.assertEqual(
+                pull_nike_run_club.default_pull_manifest_path(staged),
+                staged / "nike-run-club-last-pull.json",
+            )
+
+    def test_main_writes_custom_manifest_paths(self) -> None:
+        original_parse_args = pull_nike_run_club.parse_args
+        with TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            staged = base / "staged"
+            normalize_manifest = staged / "normalize.json"
+            pull_manifest = staged / "pull.json"
+
+            def fake_parse_args() -> Namespace:
+                return Namespace(
+                    raw_dir=base / "raw",
+                    staged_dir=staged,
+                    start_date=None,
+                    end_date=None,
+                    timezone="America/Los_Angeles",
+                    normalize_only=True,
+                    allow_empty=True,
+                    normalize_manifest=normalize_manifest,
+                    pull_manifest=pull_manifest,
+                )
+
+            try:
+                pull_nike_run_club.parse_args = fake_parse_args
+                result = pull_nike_run_club.main()
+            finally:
+                pull_nike_run_club.parse_args = original_parse_args
+
+            self.assertEqual(result, 0)
+            self.assertTrue(normalize_manifest.exists())
+            self.assertTrue(pull_manifest.exists())
+
     def test_bearer_token_from_arg_strips_prefix(self) -> None:
         args = Namespace(bearer_token="Bearer abc123")
         self.assertEqual(pull_nike_run_club.bearer_token(args), "abc123")
@@ -236,6 +280,8 @@ class NikeRunClubPullTests(unittest.TestCase):
                     timezone="America/Los_Angeles",
                     normalize_only=False,
                     allow_empty=False,
+                    normalize_manifest=base / "normalize.json",
+                    pull_manifest=base / "pull.json",
                 )
 
             def fake_bearer_token(args: Namespace) -> str:

@@ -21,14 +21,17 @@ import urllib.parse
 from pathlib import Path
 from typing import Any
 
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
 try:
     import requests
 except ImportError as exc:  # pragma: no cover - exercised by missing local dep
-    raise SystemExit("This script requires `requests`: python3 -m pip install requests") from exc
+    raise SystemExit('This script requires the "scripts" extra: uv pip install -e ".[scripts]"') from exc
 
 from healthdata.config import (
     DEFAULT_LOCAL_TIMEZONE,
-    NIKE_LAST_NORMALIZE_FILE,
     NIKE_LAST_PULL_FILE,
     NIKE_RUN_CLUB_EXPORT_DATE_ENV,
     NIKE_RUN_CLUB_RAW_ROOT,
@@ -38,11 +41,20 @@ from healthdata.config import (
 )
 from healthdata.io import utc_now_iso, write_json_file
 from healthdata.timeutil import validate_date_window
+from normalize_nike_run_club import default_manifest_path as default_normalize_manifest_path
 from normalize_nike_run_club import normalize_raw_dir
 
 
 DEFAULT_ACTIVITIES_URL = "https://api.nike.com/plus/v3/activities/before_id/v3/{before_id}"
 DEFAULT_TYPES = "run,jogging"
+
+
+def default_pull_manifest_path(staged_dir: str | Path) -> Path:
+    """Use the canonical pull manifest only for the canonical staged directory."""
+    staged = Path(staged_dir).expanduser()
+    if staged.resolve() == NIKE_RUN_CLUB_STAGED_DIR.resolve():
+        return NIKE_LAST_PULL_FILE
+    return staged / "nike-run-club-last-pull.json"
 
 
 def default_raw_export_dir() -> Path:
@@ -85,6 +97,22 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--start-date", help="Optional normalized output lower date bound, YYYY-MM-DD.")
     parser.add_argument("--end-date", help="Optional normalized output upper date bound, YYYY-MM-DD.")
     parser.add_argument(
+        "--normalize-manifest",
+        type=Path,
+        help=(
+            "Normalize manifest path. Default: the canonical ingestion manifest "
+            "for the default staged dir, else <staged-dir>/nike-run-club-last-normalize.json."
+        ),
+    )
+    parser.add_argument(
+        "--pull-manifest",
+        type=Path,
+        help=(
+            "Pull manifest path. Default: the canonical ingestion manifest "
+            "for the default staged dir, else <staged-dir>/nike-run-club-last-pull.json."
+        ),
+    )
+    parser.add_argument(
         "--timezone",
         default=os.environ.get(NIKE_RUN_CLUB_TIMEZONE_ENV, DEFAULT_LOCAL_TIMEZONE),
         help=f"IANA timezone for local activity dates and naive timestamps. Default: {NIKE_RUN_CLUB_TIMEZONE_ENV} or {DEFAULT_LOCAL_TIMEZONE}.",
@@ -98,6 +126,10 @@ def parse_args() -> argparse.Namespace:
         parser.error(str(exc))
     if args.raw_dir is None:
         args.raw_dir = NIKE_RUN_CLUB_RAW_ROOT if args.normalize_only else default_raw_export_dir()
+    if args.normalize_manifest is None:
+        args.normalize_manifest = default_normalize_manifest_path(args.staged_dir)
+    if args.pull_manifest is None:
+        args.pull_manifest = default_pull_manifest_path(args.staged_dir)
     return args
 
 
@@ -301,6 +333,7 @@ def main() -> int:
             start_date=args.start_date,
             end_date=args.end_date,
             allow_empty=args.allow_empty,
+            manifest_path=args.normalize_manifest,
             timezone=args.timezone,
         )
     except FileNotFoundError:
@@ -323,12 +356,15 @@ def main() -> int:
         "fetch": fetch_summary,
         "normalize": normalize_summary,
     }
-    write_json_file(NIKE_LAST_PULL_FILE, summary)
+    write_json_file(args.pull_manifest, summary)
     print(f"Wrote {args.staged_dir / 'activities.csv'}")
-    print(f"Wrote {NIKE_LAST_NORMALIZE_FILE}")
-    print(f"Wrote {NIKE_LAST_PULL_FILE}")
+    print(f"Wrote {args.normalize_manifest}")
+    print(f"Wrote {args.pull_manifest}")
     return 1 if normalize_summary.get("errors") else 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except KeyboardInterrupt:
+        raise SystemExit(130)

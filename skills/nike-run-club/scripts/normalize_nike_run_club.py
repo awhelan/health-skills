@@ -18,6 +18,10 @@ from pathlib import Path
 from typing import Any, Iterable
 from zoneinfo import ZoneInfo
 
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
 from healthdata.config import (
     DEFAULT_LOCAL_TIMEZONE,
     NIKE_LAST_NORMALIZE_FILE,
@@ -70,6 +74,14 @@ ACTIVE_DURATION_MS_FIELDS = ["active_duration_ms", "activeDurationMs"]
 ACTIVITY_ID_FIELDS = ["id", "activity_id"]
 
 
+def default_manifest_path(staged_dir: str | Path) -> Path:
+    """Use the canonical manifest only for the canonical staged directory."""
+    staged = Path(staged_dir).expanduser()
+    if staged.resolve() == NIKE_RUN_CLUB_STAGED_DIR.resolve():
+        return NIKE_LAST_NORMALIZE_FILE
+    return staged / "nike-run-club-last-normalize.json"
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Normalize Nike Run Club source files into data/staged/nike_run_club."
@@ -88,11 +100,21 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Write an empty manifest instead of failing when no NRC files are present.",
     )
+    parser.add_argument(
+        "--manifest",
+        type=Path,
+        help=(
+            "Normalize manifest path. Default: the canonical ingestion manifest "
+            "for the default staged dir, else <staged-dir>/nike-run-club-last-normalize.json."
+        ),
+    )
     args = parser.parse_args()
     try:
         args.start_date, args.end_date = validate_date_window(args.start_date, args.end_date)
     except ValueError as exc:
         parser.error(str(exc))
+    if args.manifest is None:
+        args.manifest = default_manifest_path(args.staged_dir)
     return args
 
 
@@ -399,6 +421,7 @@ def main() -> int:
             start_date=args.start_date,
             end_date=args.end_date,
             allow_empty=args.allow_empty,
+            manifest_path=args.manifest,
             timezone=args.timezone,
         )
     except FileNotFoundError:
@@ -407,7 +430,7 @@ def main() -> int:
         print(f"Normalize failed: {exc}", file=sys.stderr)
         return 1
     print(f"Wrote {args.staged_dir / 'activities.csv'}")
-    print(f"Wrote {NIKE_LAST_NORMALIZE_FILE}")
+    print(f"Wrote {args.manifest}")
     errors = manifest["errors"]
     if errors:
         print(f"Completed with {len(errors)} file normalization errors.", file=sys.stderr)
@@ -416,4 +439,7 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except KeyboardInterrupt:
+        raise SystemExit(130)
