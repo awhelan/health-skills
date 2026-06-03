@@ -1,0 +1,4 @@
+interface:
+  display_name: "Polar AccessLink"
+  short_description: "Pull and normalize Polar AccessLink training data"
+  default_prompt: "Use $polar-accesslink to pull Polar AccessLink training sessions and normalize them into the staged training_sessions, hr_samples, zones, and laps tables."
