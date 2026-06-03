@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+.local/
+
+data/
+
+__pycache__/
+*.pyc
+*.tmp
+
+.venv/

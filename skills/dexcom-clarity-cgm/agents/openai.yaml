@@ -1,0 +1,4 @@
+interface:
+  display_name: "Dexcom Clarity CGM"
+  short_description: "Pull and normalize Dexcom/Stelo CGM data"
+  default_prompt: "Use $dexcom-clarity-cgm to pull Dexcom Clarity readings and normalize them into a deduplicated CGM readings table."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Nike Run Club"
+  short_description: "Pull and normalize Nike Run Club runs"
+  default_prompt: "Use $nike-run-club to pull Nike Run Club activities with my bearer token and normalize them into activities.csv."
