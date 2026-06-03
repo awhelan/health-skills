@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "healthdata"
+version = "0.1.0"
+description = "Personal health-data tooling: multi-source wearable pulls, normalization, HR calibration, and reports."
+requires-python = ">=3.11"
+# The importable healthdata core is pure stdlib. The bundled provider scripts and
+# skills (scripts/, skills/) need pandas/numpy for normalize/analysis and requests
+# for API pulls; install those with the "scripts" extra: pip install -e ".[scripts]".
+dependencies = []
+
+[project.optional-dependencies]
+scripts = ["pandas", "numpy", "requests"]
+
+[tool.setuptools]
+packages = ["healthdata"]
