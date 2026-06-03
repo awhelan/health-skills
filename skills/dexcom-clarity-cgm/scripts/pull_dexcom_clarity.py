@@ -23,10 +23,14 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
 try:
     import requests
 except ImportError as exc:  # pragma: no cover - exercised by missing local dep
-    raise SystemExit("This script requires `requests`: python3 -m pip install requests") from exc
+    raise SystemExit('This script requires the "scripts" extra: uv pip install -e ".[scripts]"') from exc
 
 from auth_dexcom_clarity import (
     DEFAULT_CACHE_DIR,

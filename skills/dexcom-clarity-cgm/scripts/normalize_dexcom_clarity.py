@@ -18,10 +18,12 @@ import sys
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
+if str(WORKSPACE_ROOT) not in sys.path:
+    sys.path.insert(0, str(WORKSPACE_ROOT))
+
 from healthdata.io import utc_now_iso, write_json_file
 from healthdata.timeutil import resolve_timezone
-
-WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
 
 TABLE_COLUMNS = ["timestamp", "glucose_mg_dl", "source_device", "transmitter_id"]
 DEFAULT_TABLE = WORKSPACE_ROOT / "data/staged/dexcom_clarity/cgm_readings.csv"
@@ -329,4 +331,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except KeyboardInterrupt:
+        raise SystemExit(130)

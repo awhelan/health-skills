@@ -29,10 +29,14 @@ from http.cookiejar import MozillaCookieJar
 from pathlib import Path
 from typing import Any
 
+WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
+if str(WORKSPACE_ROOT) not in sys.path:
+    sys.path.insert(0, str(WORKSPACE_ROOT))
+
 try:
     import requests
 except ImportError as exc:  # pragma: no cover - exercised by missing local dep
-    raise SystemExit("This script requires `requests`: python3 -m pip install requests") from exc
+    raise SystemExit('This script requires the "scripts" extra: uv pip install -e ".[scripts]"') from exc
 
 
 from healthdata.auth import decode_jwt_payload, token_is_fresh
@@ -44,7 +48,6 @@ from healthdata.io import (
     write_json_file,
 )
 
-WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_ENV_FILE = WORKSPACE_ROOT / ".local/secrets/dexcom_clarity.env"
 DEFAULT_CACHE_DIR = WORKSPACE_ROOT / ".local/state/dexcom_clarity"
 
