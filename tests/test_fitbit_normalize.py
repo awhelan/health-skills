@@ -210,6 +210,95 @@ class FitbitNormalizeTests(unittest.TestCase):
         self.assertEqual(len(merged), 1)
         self.assertEqual(int(merged.iloc[0]["daily_steps"]), 999)
 
+    def test_api_daily_merge_preserves_takeout_fields_and_source(self) -> None:
+        with TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            staged = base / "staged"
+            staged.mkdir()
+            pd.DataFrame(
+                [
+                    {
+                        "date": "2026-05-01",
+                        "daily_steps": 1111,
+                        "stress_score": 40,
+                        "source": "takeout",
+                    }
+                ]
+            ).to_csv(staged / "daily_metrics.csv", index=False)
+
+            normalize_fitbit.normalize_and_stage(
+                staged,
+                START,
+                START,
+                {
+                    "steps": {"activities-steps": [{"dateTime": "2026-05-01", "value": "2000"}]},
+                    "distance": {"activities-distance": [{"dateTime": "2026-05-01", "value": "2.5"}]},
+                    "activity_summary": {},
+                    "azm": {},
+                    "heart": {},
+                    "hrv": {},
+                    "sleep": {},
+                    "health_metrics": {},
+                    "activity_logs": {"pages": [{"activities": []}]},
+                    "tcx_manifest": {"files": [], "errors": []},
+                },
+                manifest_path=None,
+            )
+            daily = pd.read_csv(staged / "daily_metrics.csv")
+
+        row = daily.iloc[0]
+        self.assertEqual(int(row["daily_steps"]), 1111)
+        self.assertEqual(float(row["daily_miles"]), 2.5)
+        self.assertEqual(float(row["stress_score"]), 40.0)
+        self.assertEqual(row["source"], "api+takeout")
+
+    def test_refetched_activity_window_removes_stale_logs_and_tcx(self) -> None:
+        with TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            staged = base / "staged"
+            normalize_fitbit.normalize_and_stage(staged, START, END, full_payloads(), manifest_path=None)
+
+            no_activity_payloads = {
+                **full_payloads(),
+                "activity_logs": {"pages": [{"activities": []}]},
+                "tcx_manifest": {"files": [], "errors": []},
+            }
+            manifest = normalize_fitbit.normalize_and_stage(
+                staged, START, END, no_activity_payloads, manifest_path=None,
+            )
+            with (staged / "activity_logs.csv").open(newline="", encoding="utf-8") as handle:
+                log_rows = list(csv.DictReader(handle))
+            with (staged / "activity_tcx.csv").open(newline="", encoding="utf-8") as handle:
+                tcx_rows = list(csv.DictReader(handle))
+            daily = pd.read_csv(staged / "daily_metrics.csv")
+
+        self.assertEqual(manifest["activity_logs_total"], 0)
+        self.assertEqual(manifest["activity_tcx_total"], 0)
+        self.assertEqual(log_rows, [])
+        self.assertEqual(tcx_rows, [])
+        self.assertEqual(int(daily.loc[daily["date"] == "2026-05-01", "exercise_count"].iloc[0]), 0)
+
+    def test_skipped_tcx_manifest_does_not_remove_existing_tcx_rows(self) -> None:
+        with TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            staged = base / "staged"
+            normalize_fitbit.normalize_and_stage(staged, START, END, full_payloads(), manifest_path=None)
+
+            skipped_tcx_payloads = {
+                **full_payloads(),
+                "activity_logs": {"pages": [{"activities": []}]},
+                "tcx_manifest": {"files": [], "errors": [], "skipped": True},
+            }
+            manifest = normalize_fitbit.normalize_and_stage(
+                staged, START, END, skipped_tcx_payloads, manifest_path=None,
+            )
+            with (staged / "activity_tcx.csv").open(newline="", encoding="utf-8") as handle:
+                tcx_rows = list(csv.DictReader(handle))
+
+        self.assertEqual(manifest["activity_logs_total"], 0)
+        self.assertEqual(manifest["activity_tcx_total"], 1)
+        self.assertEqual(str(tcx_rows[0]["log_id"]), "111")
+
 
 class FitbitPullTests(unittest.TestCase):
     def test_chunks_splits_by_max_days(self) -> None:

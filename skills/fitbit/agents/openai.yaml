@@ -1,0 +1,4 @@
+interface:
+  display_name: "Fitbit"
+  short_description: "Pull and normalize Fitbit Web API data"
+  default_prompt: "Use $fitbit to pull recent Fitbit Web API metrics and normalize them into the staged daily_metrics, activity_logs, and activity_tcx tables."
