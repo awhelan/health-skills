@@ -117,6 +117,16 @@ def _timestamp_iso(value: dt.datetime, local_tz: ZoneInfo, fold: int = 0) -> str
     return value.replace(tzinfo=local_tz, fold=fold).isoformat()
 
 
+def canonical_timestamp(timestamp: str, local_tz: ZoneInfo) -> str:
+    """Normalize a stored timestamp to canonical tz-aware ISO 8601.
+
+    Legacy rows were written naive (no offset); current rows are tz-aware. Keying
+    both through this collapses a naive legacy row onto its tz-aware twin so
+    re-normalizing never double-writes the overlap window.
+    """
+    return _timestamp_iso(parse_timestamp(timestamp), local_tz)
+
+
 def glucose_to_mg_dl(value: str, header: str) -> str:
     """Return the reading in mg/dL, clamping out-of-range markers and converting mmol/L.
 
@@ -190,15 +200,23 @@ def parse_clarity_readings(data: bytes | str, local_tz: ZoneInfo = DEFAULT_LOCAL
     return readings
 
 
-def read_table(path: Path) -> dict[str, dict[str, str]]:
-    """Load the staged CGM table keyed by timestamp."""
+def read_table(path: Path, local_tz: ZoneInfo = DEFAULT_LOCAL_TZ) -> dict[str, dict[str, str]]:
+    """Load the staged CGM table keyed by canonical tz-aware timestamp."""
     if not path.exists():
         return {}
     with path.open(newline="") as f:
         reader = csv.DictReader(f)
         if "timestamp" not in (reader.fieldnames or []):
             raise ValueError(f"{path} is missing required 'timestamp' column")
-        return {row["timestamp"]: row for row in reader if row.get("timestamp")}
+        table: dict[str, dict[str, str]] = {}
+        for row in reader:
+            raw = row.get("timestamp")
+            if not raw:
+                continue
+            key = canonical_timestamp(raw, local_tz)
+            row["timestamp"] = key
+            table[key] = row
+        return table
 
 
 def write_table(path: Path, rows_by_ts: dict[str, dict[str, str]]) -> None:
@@ -213,14 +231,18 @@ def write_table(path: Path, rows_by_ts: dict[str, dict[str, str]]) -> None:
     tmp.replace(path)
 
 
-def normalize_readings(table_path: Path, readings: list[dict[str, str]]) -> tuple[int, int]:
-    """Upsert readings into the table. Returns (added, total)."""
-    table = read_table(table_path)
+def normalize_readings(
+    table_path: Path, readings: list[dict[str, str]], local_tz: ZoneInfo = DEFAULT_LOCAL_TZ
+) -> tuple[int, int]:
+    """Upsert readings into the table, keyed by canonical timestamp. Returns (added, total)."""
+    table = read_table(table_path, local_tz)
     added = 0
     for reading in readings:
-        if reading["timestamp"] not in table:
+        key = canonical_timestamp(reading["timestamp"], local_tz)
+        reading = {**reading, "timestamp": key}
+        if key not in table:
             added += 1
-        table[reading["timestamp"]] = reading
+        table[key] = reading
     write_table(table_path, table)
     return added, len(table)
 
@@ -299,7 +321,7 @@ def main(argv: list[str] | None = None) -> int:
             parsed_exports.append((export, readings))
 
         for export, readings in parsed_exports:
-            added, total = normalize_readings(table_path, readings)
+            added, total = normalize_readings(table_path, readings, local_tz)
             added_total += added
             print(f"Normalized {export.name}: {len(readings)} parsed, +{added} new ({total} total)")
 

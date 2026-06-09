@@ -208,6 +208,25 @@ class DexcomNormalizeTests(unittest.TestCase):
         )
         self.assertEqual(rows[0]["glucose_mg_dl"], "101")
 
+    def test_naive_legacy_rows_collapse_onto_tz_aware_twins(self) -> None:
+        # Rows written by the pre-tz-aware normalizer are naive; a re-pull emits
+        # the same instant tz-aware. Both must key to one canonical reading.
+        with TemporaryDirectory() as tmp:
+            table = Path(tmp) / "cgm_readings.csv"
+            with table.open("w", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=normalize_dexcom_clarity.TABLE_COLUMNS)
+                writer.writeheader()
+                writer.writerow({"timestamp": "2026-05-26T07:25:30", "glucose_mg_dl": "117"})
+
+            readings = [{"timestamp": "2026-05-26T07:25:30-07:00", "glucose_mg_dl": "117"}]
+            added, total = normalize_dexcom_clarity.normalize_readings(table, readings)
+
+            with table.open(newline="") as f:
+                rows = list(csv.DictReader(f))
+
+        self.assertEqual((added, total), (0, 1))
+        self.assertEqual([row["timestamp"] for row in rows], ["2026-05-26T07:25:30-07:00"])
+
     def test_cli_discovers_exports_beside_table_and_prunes(self) -> None:
         with TemporaryDirectory() as tmp:
             base = Path(tmp)
