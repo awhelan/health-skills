@@ -4,6 +4,7 @@
 .local/
 
 data/
+reports/
 
 __pycache__/
 *.pyc
